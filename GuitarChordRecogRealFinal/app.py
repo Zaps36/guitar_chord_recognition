@@ -6,6 +6,11 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import tempfile
 import numpy
+import librosa
+import numpy as np
+import cv2
+import tensorflow as tf
+import pickle
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
@@ -18,18 +23,22 @@ debug_logs = []
 
 # Load the model at startup
 model = None
+label_encoder = None 
 def load_model():
-    global model
+    global model, label_encoder
     try:
-        import tensorflow as tf
-        print("Loading model: chord_classifier_model.h5")
-        model = tf.keras.models.load_model('chord_classifier_model.h5')
-        print("Model loaded successfully")
+        print("Loading model: guitar_chord_crnn_tuned_model.h5")
+        model = tf.keras.models.load_model('guitar_chord_crnn_tuned_model.h5')
+        with open("label_encoder_tuned.pkl", "rb") as f:
+            label_encoder = pickle.load(f)
+        print("Model and label encoder loaded successfully")
         return True
     except Exception as e:
         print(f"Error loading model: {str(e)}")
         traceback.print_exc()
         return False
+
+
 
 def log_debug(message):
     """Add a timestamped debug message to the logs"""
@@ -69,6 +78,7 @@ def step5_real_prediction():
             if not success:
                 return jsonify({'error': 'Failed to load model'}), 500
         
+
         if 'file' not in request.files:
             log_debug("Error: No file part in request")
             return jsonify({'error': 'No file part'}), 400
@@ -89,34 +99,36 @@ def step5_real_prediction():
         
         try:
             # Import libraries here to isolate any import errors
-            import librosa
-            import numpy as np
-            import cv2
-            import tensorflow as tf
+            
             
             # Load the audio file
             log_debug("Loading audio file...")
-            audio, sr = librosa.load(temp_path, sr=22050, duration=5)
+            audio, sr = librosa.load(temp_path, sr=22050, duration=2.5, offset=0.5)
             log_debug(f"Audio loaded successfully: {len(audio)} samples, {sr}Hz sample rate")
             
             # Create mel spectrogram
             log_debug("Creating mel spectrogram...")
             mel_spec = librosa.feature.melspectrogram(y=audio, sr=sr, n_mels=128)
             mel_spec_db = librosa.power_to_db(mel_spec, ref=np.max)
+            mel_spec_db = (mel_spec_db - np.mean(mel_spec_db)) / (np.std(mel_spec_db) + 1e-6)
             log_debug(f"Mel spectrogram created: shape {mel_spec_db.shape}")
             
-            # Resize spectrogram to match model input shape
-            log_debug("Resizing spectrogram...")
-            target_shape = (128, 130)  # Adjust if your model expects a different input shape
-            mel_spec_resized = cv2.resize(mel_spec_db, (target_shape[1], target_shape[0]), interpolation=cv2.INTER_AREA)
-            log_debug(f"Spectrogram resized: shape {mel_spec_resized.shape}")
+            target_time_frames = 200
+            current_frames = mel_spec_db.shape[1]
+            if current_frames < target_time_frames:
+                pad_width = target_time_frames - current_frames
+                mel_spec_db = np.pad(mel_spec_db, ((0, 0), (0, pad_width)), mode='constant')
+            else:
+                mel_spec_db = mel_spec_db[:, :target_time_frames]
+
+            log_debug(f"Mel spectrogram final shape: {mel_spec_db.shape}")
             
             # Add channel dimension
-            mel_spec_resized = mel_spec_resized[..., np.newaxis]
-            log_debug(f"Channel dimension added: shape {mel_spec_resized.shape}")
+            mel_spec_input = mel_spec_db[..., np.newaxis]
+            log_debug(f"Channel dimension added: shape {mel_spec_db.shape}")
             
             # Add batch dimension
-            mel_spec_input = np.expand_dims(mel_spec_resized, axis=0)
+            mel_spec_input = np.expand_dims(mel_spec_input, axis=0)
             log_debug(f"Batch dimension added: shape {mel_spec_input.shape}")
             
             # Make prediction
@@ -126,25 +138,20 @@ def step5_real_prediction():
             
             # Get the chord classes (assuming they're in order of model output)
             # You may need to adjust this based on your model's output format
-            chord_classes = [
-                'A#maj', 'A#maj7', 'A#min', 'A#min7', 'Amaj', 'Amaj7', 'Amin', 'Amin7', 'Bmaj',
-                'Bmaj7', 'Bmin', 'Bmin7', 'C#maj', 'C#maj7', 'C#min', 'C#min7', 'Cmaj', 'Cmaj7',
-                'Cmin', 'Cmin7', 'D#maj', 'D#maj7', 'D#min', 'D#min7', 'Dmaj', 'Dmaj7', 'Dmin',
-                'Dmin7', 'Emaj', 'Emaj7', 'Emin', 'Emin7', 'F#maj', 'F#maj7', 'F#min', 'F#min7',
-                'Fmaj', 'Fmaj7', 'Fmin', 'Fmin7', 'G#maj', 'G#maj7', 'G#min', 'G#min7', 'Gmaj',
-                'Gmaj7', 'Gmin', 'Gmin7'
-            ]
-            
+            predicted_chord = label_encoder.inverse_transform([np.argmax(predictions[0])])[0]
+     
             # Get top predictions
-            top_indices = np.argsort(predictions[0])[::-1][:3]  # Get indices of top 3 predictions
+            top_indices = np.argsort(predictions[0])[::-1][:3]
+
+# Use label encoder to decode class labels from indices
             top_predictions = [
-                {"chord": chord_classes[idx], "confidence": float(predictions[0][idx])}
+                {"chord": label_encoder.inverse_transform([idx])[0], "confidence": float(predictions[0][idx])}
                 for idx in top_indices
             ]
-            
-            # Get the predicted chord (highest confidence)
-            predicted_chord = chord_classes[np.argmax(predictions[0])]
-            confidence = float(np.max(predictions[0]))
+
+            # Predicted chord (highest confidence)
+            predicted_chord = label_encoder.inverse_transform([top_indices[0]])[0]
+            confidence = float(predictions[0][top_indices[0]])
             
             # Clean up the temporary file
             os.unlink(temp_path)

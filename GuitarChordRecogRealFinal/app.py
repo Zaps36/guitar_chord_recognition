@@ -5,10 +5,8 @@ import traceback
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 import tempfile
-import numpy
 import librosa
 import numpy as np
-import cv2
 import tensorflow as tf
 import pickle
 
@@ -27,8 +25,8 @@ label_encoder = None
 def load_model():
     global model, label_encoder
     try:
-        print("Loading model: guitar_chord_crnn_tuned_model.h5")
-        model = tf.keras.models.load_model('guitar_chord_crnn_tuned_model.h5')
+        print("Loading model: guitar_chord_crnn_tuned_model_random_state.h5")
+        model = tf.keras.models.load_model('guitar_chord_crnn_tuned_model_random_state.h5')
         with open("label_encoder_tuned.pkl", "rb") as f:
             label_encoder = pickle.load(f)
         print("Model and label encoder loaded successfully")

@@ -1,0 +1,18 @@
+=====================
+Instruksi menjalankan
+=====================
+1. Jalankan CodeRecognition - Copy.ipynb
+	- Bila error , periksa path dataset. Sesuaikan dengan lokasi dataset
+2. Masukkan model prediksi (default = "guitar_chord_crnn_tuned_model_random_state.h5") ke dalam folder GuitarChordRecogRealFinal
+	- Secara default, model sudah ada. Bila ingin menggunakan model yang baru di load, hapus atau ganti nama dari model default dan gunakan nama "guitar_chord_crnn_tuned_model_random_state.h5" pada model baru
+3. Masukkan encoding label (default = "label_encoder_tuned_random_state.pkl") ke dalam folder GuitarChordRecogRealFinal
+	- Secara default, encoding sudah ada. Bila ingin menggunakan encoding yang baru di load, hapus atau ganti nama dari file default dan gunakan nama "label_encoder_tuned_random_state.pkl" pada file baru
+4. Jalankan backend dengan "python app.py"
+5. Jalankan instalasi frontend -> npm install
+6. Jalankan frontend -> npm run dev
+7. Bila ada masalah pada file , lakukan clone dari repository GitHub (https://github.com/Zaps36/guitar_chord_recognition.git) atau tertera di laporan
+8. Bila masih ada masalah , bisa contact ke nomor WhatsApp berikut : 081288812399
+====================
+Daftar File
+====================
+- File "splitting.ipynb" hanyalah sampel dari kode splitting yang kami lakukan dan tidak diperlukan pada saat menggunakan dataset bersih kami

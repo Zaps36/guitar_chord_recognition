@@ -27,7 +27,7 @@ def load_model():
     try:
         print("Loading model: guitar_chord_crnn_tuned_model_random_state.h5")
         model = tf.keras.models.load_model('guitar_chord_crnn_tuned_model_random_state.h5')
-        with open("label_encoder_tuned.pkl", "rb") as f:
+        with open("label_encoder_tuned_random_state.pkl", "rb") as f:
             label_encoder = pickle.load(f)
         print("Model and label encoder loaded successfully")
         return True
